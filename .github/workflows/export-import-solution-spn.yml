@@ -1,6 +1,11 @@
 name: Export and Import Power Platform Solution (SPN)
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/export-import-solution-spn.yml"
   workflow_dispatch:
     inputs:
       solution_name:
@@ -27,6 +32,26 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Validate required secrets
+        shell: bash
+        env:
+          SOURCE_ENVIRONMENT_URL: ${{ secrets.SOURCE_ENVIRONMENT_URL }}
+          SOURCE_APP_ID: ${{ secrets.SOURCE_APP_ID }}
+          SOURCE_CLIENT_SECRET: ${{ secrets.SOURCE_CLIENT_SECRET }}
+          SOURCE_TENANT_ID: ${{ secrets.SOURCE_TENANT_ID }}
+          TARGET_ENVIRONMENT_URL: ${{ secrets.TARGET_ENVIRONMENT_URL }}
+          TARGET_APP_ID: ${{ secrets.TARGET_APP_ID }}
+          TARGET_CLIENT_SECRET: ${{ secrets.TARGET_CLIENT_SECRET }}
+          TARGET_TENANT_ID: ${{ secrets.TARGET_TENANT_ID }}
+        run: |
+          set -euo pipefail
+          for v in SOURCE_ENVIRONMENT_URL SOURCE_APP_ID SOURCE_CLIENT_SECRET SOURCE_TENANT_ID TARGET_ENVIRONMENT_URL TARGET_APP_ID TARGET_CLIENT_SECRET TARGET_TENANT_ID; do
+            if [ -z "${!v:-}" ]; then
+              echo "Missing required secret: $v"
+              exit 1
+            fi
+          done
 
       - name: Install Power Platform Tools
         uses: microsoft/powerplatform-actions/actions-install@v1
