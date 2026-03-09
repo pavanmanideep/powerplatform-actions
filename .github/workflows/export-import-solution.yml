@@ -1,0 +1,76 @@
+name: Export and Import Power Platform Solution
+
+on:
+  workflow_dispatch:
+    inputs:
+      solution_name:
+        description: Solution unique name to export
+        required: true
+        default: EcellorsDemoSolution
+      package_type:
+        description: Export type
+        required: true
+        type: choice
+        options:
+          - managed
+          - unmanaged
+        default: managed
+      async_wait_minutes:
+        description: Max async wait time (minutes)
+        required: true
+        default: "60"
+
+jobs:
+  export-import:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Power Platform Tools
+        uses: microsoft/powerplatform-actions/actions-install@v1
+
+      - name: Set output file name
+        id: file
+        shell: bash
+        run: |
+          mkdir -p out
+          if [ "${{ github.event.inputs.package_type }}" = "managed" ]; then
+            echo "solution_file=out/${{ github.event.inputs.solution_name }}_managed.zip" >> "$GITHUB_OUTPUT"
+            echo "is_managed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "solution_file=out/${{ github.event.inputs.solution_name }}_unmanaged.zip" >> "$GITHUB_OUTPUT"
+            echo "is_managed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Export solution from source environment
+        uses: microsoft/powerplatform-actions/export-solution@v1
+        with:
+          environment-url: ${{ secrets.SOURCE_ENVIRONMENT_URL }}
+          user-name: ${{ secrets.SOURCE_USERNAME }}
+          password-secret: ${{ secrets.SOURCE_PASSWORD }}
+          solution-name: ${{ github.event.inputs.solution_name }}
+          solution-output-file: ${{ steps.file.outputs.solution_file }}
+          managed: ${{ steps.file.outputs.is_managed }}
+          run-asynchronously: true
+          max-async-wait-time: ${{ github.event.inputs.async_wait_minutes }}
+          overwrite: true
+
+      - name: Upload exported solution artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: exported-solution
+          path: ${{ steps.file.outputs.solution_file }}
+
+      - name: Import solution into target environment
+        uses: microsoft/powerplatform-actions/import-solution@v1
+        with:
+          environment-url: ${{ secrets.TARGET_ENVIRONMENT_URL }}
+          user-name: ${{ secrets.TARGET_USERNAME }}
+          password-secret: ${{ secrets.TARGET_PASSWORD }}
+          solution-file: ${{ steps.file.outputs.solution_file }}
+          run-asynchronously: true
+          max-async-wait-time: ${{ github.event.inputs.async_wait_minutes }}
+          publish-changes: true
+          skip-lower-version: false
